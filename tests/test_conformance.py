@@ -27,7 +27,24 @@ from toli import (
     ToliUnavailableError,
 )
 
-SPEC = Path(__file__).resolve().parents[2] / "spec" / "conformance"
+def _spec_dir() -> Path:
+    """The shared fixtures, wherever this package is sitting.
+
+    Two layouts must work: the monorepo, where spec/ is one level above the
+    language folder, and the published mirror, where it was vendored at the
+    root. A hard-coded path passes in one and fails in the other — which is
+    exactly what happened the first time a mirror was cloned.
+    """
+    here = Path(__file__).resolve()
+
+    for candidate in (here.parents[1] / "spec", here.parents[2] / "spec"):
+        if (candidate / "conformance").is_dir():
+            return candidate / "conformance"
+
+    raise FileNotFoundError("Conformance fixtures not found")
+
+
+SPEC = _spec_dir()
 
 
 def spec(name: str) -> dict[str, Any]:
