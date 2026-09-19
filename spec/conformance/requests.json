@@ -1,0 +1,173 @@
+{
+  "$comment": "What every SDK must PUT ON THE WIRE, down to the key. An SDK that renames a field breaks the gateway without its unit tests blinking.",
+  "contract_version": 1,
+  "cases": [
+    {
+      "name": "text state, one Choice with its escape hatch",
+      "input": {
+        "state": "La synchronisation refuse depuis ce matin.",
+        "model": "toli-1",
+        "questions": {
+          "category": {
+            "kind": "choice",
+            "instructions": "Which team handles this ticket",
+            "criteria": {
+              "application": "The app misbehaves",
+              "hardware": "A device is broken or missing",
+              "synchronization": "Data does not sync",
+              "other": "None of the above"
+            }
+          }
+        }
+      },
+      "expect_body": {
+        "state": "La synchronisation refuse depuis ce matin.",
+        "model": "toli-1",
+        "questions": {
+          "category": {
+            "kind": "choice",
+            "instructions": "Which team handles this ticket",
+            "criteria": {
+              "application": "The app misbehaves",
+              "hardware": "A device is broken or missing",
+              "synchronization": "Data does not sync",
+              "other": "None of the above"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "structured state: serialised as-is, not flattened into text",
+      "input": {
+        "state": {
+          "interface": "CommCare",
+          "feature": "Sync",
+          "description": "Rien ne remonte"
+        },
+        "model": "toli-1",
+        "questions": {
+          "urgent": {
+            "kind": "noul",
+            "instructions": "The sender is blocked today"
+          }
+        }
+      },
+      "expect_body": {
+        "state": {
+          "interface": "CommCare",
+          "feature": "Sync",
+          "description": "Rien ne remonte"
+        },
+        "model": "toli-1",
+        "questions": {
+          "urgent": {
+            "kind": "noul",
+            "instructions": "The sender is blocked today"
+          }
+        }
+      }
+    },
+    {
+      "name": "three questions in ONE call: never one request per question",
+      "input": {
+        "state": "Tablette tombée, écran fendu, je ne peux plus saisir.",
+        "model": "toli-1",
+        "questions": {
+          "category": {
+            "kind": "choice",
+            "instructions": "Which team handles this ticket",
+            "criteria": {
+              "hardware": "A device is broken",
+              "other": "None of the above"
+            }
+          },
+          "urgent": {
+            "kind": "noul",
+            "instructions": "The sender is blocked today"
+          },
+          "tone": {
+            "kind": "score",
+            "instructions": "How frustrated the sender appears",
+            "criteria": [
+              "Calm",
+              "Frustrated but civil",
+              "Angry, strong language"
+            ]
+          }
+        }
+      },
+      "expect_request_count": 1,
+      "expect_body": {
+        "state": "Tablette tombée, écran fendu, je ne peux plus saisir.",
+        "model": "toli-1",
+        "questions": {
+          "category": {
+            "kind": "choice",
+            "instructions": "Which team handles this ticket",
+            "criteria": {
+              "hardware": "A device is broken",
+              "other": "None of the above"
+            }
+          },
+          "urgent": {
+            "kind": "noul",
+            "instructions": "The sender is blocked today"
+          },
+          "tone": {
+            "kind": "score",
+            "instructions": "How frustrated the sender appears",
+            "criteria": [
+              "Calm",
+              "Frustrated but civil",
+              "Angry, strong language"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "rejected": [
+    {
+      "name": "single-option Choice: the model would have no choice",
+      "questions": {
+        "category": {
+          "kind": "choice",
+          "instructions": "Which team",
+          "criteria": {
+            "application": "The app"
+          }
+        }
+      },
+      "expect_error": "ToliConfigError"
+    },
+    {
+      "name": "inverted thresholds: confirm above act",
+      "thresholds": {
+        "act": 0.6,
+        "confirm": 0.85
+      },
+      "expect_error": "ToliConfigError"
+    },
+    {
+      "name": "threshold out of bounds",
+      "thresholds": {
+        "act": 1.4,
+        "confirm": 0.6
+      },
+      "expect_error": "ToliConfigError"
+    },
+    {
+      "name": "missing key: fail BEFORE going on the network",
+      "api_key": "",
+      "expect_error": "ToliConfigError",
+      "expect_request_count": 0
+    },
+    {
+      "name": "no questions at all",
+      "questions": {},
+      "expect_error": "ToliConfigError",
+      "expect_request_count": 0
+    }
+  ]
+}

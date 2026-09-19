@@ -1,0 +1,260 @@
+{
+  "$comment": "What every SDK must READ, and how it must fail. Error cases carry the expected attempt count: that is the only way to check an SDK does not retry what must not be retried.",
+  "contract_version": 1,
+  "parsed": [
+    {
+      "name": "nominal reading: three answers, three forms",
+      "http": {
+        "status": 200,
+        "body": {
+          "model": "toli-1.13",
+          "answers": {
+            "category": {
+              "choice": "synchronization",
+              "probabilities": {
+                "application": 0.06,
+                "hardware": 0.01,
+                "synchronization": 0.92,
+                "other": 0.01
+              },
+              "confidence": 0.92
+            },
+            "urgent": {
+              "noul": 0.81
+            },
+            "tone": {
+              "score": 1.4,
+              "legend": "Frustrated but civil",
+              "confidence": 0.66
+            }
+          },
+          "usage": {
+            "input_tokens": 742,
+            "output_tokens": 0
+          }
+        }
+      },
+      "expect": {
+        "model": "toli-1.13",
+        "answers": {
+          "category": {
+            "kind": "choice",
+            "value": "synchronization",
+            "confidence": 0.92,
+            "route": "act"
+          },
+          "urgent": {
+            "kind": "noul",
+            "value": 0.81,
+            "certainty": 0.62,
+            "route": "confirm"
+          },
+          "tone": {
+            "kind": "score",
+            "value": 1.4,
+            "legend": "Frustrated but civil",
+            "confidence": 0.66,
+            "route": "confirm"
+          }
+        },
+        "usage": {
+          "input_tokens": 742,
+          "output_tokens": 0
+        }
+      }
+    },
+    {
+      "name": "the served model is NOT the one requested: return the server's, never the request's",
+      "request_model": "toli-1",
+      "http": {
+        "status": 200,
+        "body": {
+          "model": "toli-1.14",
+          "answers": {
+            "urgent": {
+              "noul": 0.1
+            }
+          },
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 0
+          }
+        }
+      },
+      "expect": {
+        "model": "toli-1.14"
+      }
+    },
+    {
+      "name": "usage missing: counted as zero, not an error",
+      "http": {
+        "status": 200,
+        "body": {
+          "model": "toli-1",
+          "answers": {
+            "urgent": {
+              "noul": 0.9
+            }
+          }
+        }
+      },
+      "expect": {
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  ],
+  "errors": [
+    {
+      "name": "key rejected: no retry, trying again would change nothing",
+      "http": {
+        "status": 401,
+        "body": {
+          "error": "invalid api key"
+        }
+      },
+      "expect_error": "ToliAuthError",
+      "expect_attempts": 1
+    },
+    {
+      "name": "forbidden",
+      "http": {
+        "status": 403,
+        "body": {
+          "error": "forbidden"
+        }
+      },
+      "expect_error": "ToliAuthError",
+      "expect_attempts": 1
+    },
+    {
+      "name": "quota: honour the server's retry-after rather than our own backoff",
+      "http": {
+        "status": 429,
+        "headers": {
+          "retry-after": "2"
+        },
+        "body": {
+          "error": "rate limited"
+        }
+      },
+      "then": {
+        "status": 200,
+        "body": {
+          "model": "toli-1",
+          "answers": {
+            "urgent": {
+              "noul": 0.9
+            }
+          }
+        }
+      },
+      "expect_attempts": 2,
+      "expect_wait_seconds": 2
+    },
+    {
+      "name": "529 overloaded: transient, retry",
+      "http": {
+        "status": 529,
+        "body": {
+          "error": "overloaded"
+        }
+      },
+      "then": {
+        "status": 200,
+        "body": {
+          "model": "toli-1",
+          "answers": {
+            "urgent": {
+              "noul": 0.9
+            }
+          }
+        }
+      },
+      "expect_attempts": 2
+    },
+    {
+      "name": "server fault",
+      "http": {
+        "status": 503,
+        "body": {
+          "error": "unavailable"
+        }
+      },
+      "then": {
+        "status": 200,
+        "body": {
+          "model": "toli-1",
+          "answers": {
+            "urgent": {
+              "noul": 0.9
+            }
+          }
+        }
+      },
+      "expect_attempts": 2
+    },
+    {
+      "name": "dropped connection: retries like a 429 — 3 readings out of 897 were lost without this rule",
+      "http": {
+        "connection_error": true
+      },
+      "then": {
+        "status": 200,
+        "body": {
+          "model": "toli-1",
+          "answers": {
+            "urgent": {
+              "noul": 0.9
+            }
+          }
+        }
+      },
+      "expect_attempts": 2
+    },
+    {
+      "name": "persistent outage: five attempts, then hand back control",
+      "http": {
+        "status": 503,
+        "repeat": true
+      },
+      "expect_error": "ToliUnavailableError",
+      "expect_attempts": 5
+    },
+    {
+      "name": "200 with no answers: the server replied, but not to the question asked",
+      "http": {
+        "status": 200,
+        "body": {
+          "model": "toli-1"
+        }
+      },
+      "expect_error": "ToliProtocolError",
+      "expect_attempts": 1
+    },
+    {
+      "name": "unreadable body",
+      "http": {
+        "status": 200,
+        "raw_body": "<html>502 Bad Gateway</html>"
+      },
+      "expect_error": "ToliProtocolError",
+      "expect_attempts": 1
+    },
+    {
+      "name": "the error carries the request id and a BOUNDED body excerpt",
+      "http": {
+        "status": 400,
+        "headers": {
+          "x-request-id": "req_8fa31"
+        },
+        "raw_body_length": 5000
+      },
+      "expect_error": "ToliProtocolError",
+      "expect_request_id": "req_8fa31",
+      "expect_body_excerpt_max": 300
+    }
+  ]
+}

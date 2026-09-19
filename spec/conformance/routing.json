@@ -1,0 +1,164 @@
+{
+  "$comment": "The three-route rule. Every SDK replays these cases and must produce the same route. This is the file that stops seven SDKs from drifting apart on the one computation that matters.",
+  "contract_version": 1,
+  "thresholds": {
+    "act": 0.85,
+    "confirm": 0.6
+  },
+  "cases": [
+    {
+      "name": "frank confidence above the act threshold",
+      "answer": {
+        "kind": "choice",
+        "choice": "synchronization",
+        "confidence": 0.97
+      },
+      "expect": "act"
+    },
+    {
+      "name": "confidence exactly at the act threshold: the threshold is INCLUSIVE",
+      "answer": {
+        "kind": "choice",
+        "choice": "hardware",
+        "confidence": 0.85
+      },
+      "expect": "act"
+    },
+    {
+      "name": "a hair below the act threshold: propose, do not act",
+      "answer": {
+        "kind": "choice",
+        "choice": "hardware",
+        "confidence": 0.8499
+      },
+      "expect": "confirm"
+    },
+    {
+      "name": "confidence exactly at the confirm threshold: inclusive as well",
+      "answer": {
+        "kind": "choice",
+        "choice": "application",
+        "confidence": 0.6
+      },
+      "expect": "confirm"
+    },
+    {
+      "name": "below the confirm threshold: Toli does not know, a human takes over",
+      "answer": {
+        "kind": "choice",
+        "choice": "application",
+        "confidence": 0.59
+      },
+      "expect": "escalate"
+    },
+    {
+      "name": "zero confidence",
+      "answer": {
+        "kind": "choice",
+        "choice": "other",
+        "confidence": 0.0
+      },
+      "expect": "escalate"
+    },
+    {
+      "name": "score: same rule, the returned value does not affect the route",
+      "answer": {
+        "kind": "score",
+        "score": 2.4,
+        "confidence": 0.91
+      },
+      "expect": "act"
+    },
+    {
+      "name": "unsure score",
+      "answer": {
+        "kind": "score",
+        "score": 1.1,
+        "confidence": 0.42
+      },
+      "expect": "escalate"
+    },
+    {
+      "name": "noul frankly yes: certainty = |0.98-0.5|*2 = 0.96",
+      "answer": {
+        "kind": "noul",
+        "noul": 0.98
+      },
+      "expect": "act"
+    },
+    {
+      "name": "noul frankly NO: a confident no is worth a confident yes (certainty = 0.96)",
+      "answer": {
+        "kind": "noul",
+        "noul": 0.02
+      },
+      "expect": "act"
+    },
+    {
+      "name": "noul at perfect doubt: 0.5 is the admission of ignorance, NEVER an action",
+      "answer": {
+        "kind": "noul",
+        "noul": 0.5
+      },
+      "expect": "escalate"
+    },
+    {
+      "name": "lukewarm noul on the yes side: certainty = 0.4, below confirm",
+      "answer": {
+        "kind": "noul",
+        "noul": 0.7
+      },
+      "expect": "escalate"
+    },
+    {
+      "name": "noul whose certainty lands exactly on the confirm threshold (0.8 → 0.6)",
+      "answer": {
+        "kind": "noul",
+        "noul": 0.8
+      },
+      "expect": "confirm"
+    },
+    {
+      "name": "symmetric noul: 0.2 yields the same certainty as 0.8",
+      "answer": {
+        "kind": "noul",
+        "noul": 0.2
+      },
+      "expect": "confirm"
+    }
+  ],
+  "advisory": {
+    "$comment": "Advisory mode: no ACT route exists, whatever the confidence. This is what clinical use rests on — screening and orientation for sickle-cell disease, haemophilia and rare diseases.",
+    "thresholds": {
+      "confirm": 0.6,
+      "advisory": true
+    },
+    "cases": [
+      {
+        "name": "certainty 1.0 still only proposes",
+        "certainty": 1.0,
+        "expect": "confirm"
+      },
+      {
+        "name": "certainty far above any act threshold still only proposes",
+        "certainty": 0.99,
+        "expect": "confirm"
+      },
+      {
+        "name": "certainty at the usual act threshold still only proposes",
+        "certainty": 0.85,
+        "expect": "confirm"
+      },
+      {
+        "name": "certainty at the confirm threshold",
+        "certainty": 0.6,
+        "expect": "confirm"
+      },
+      {
+        "name": "below confirm: escalate to a qualified human",
+        "certainty": 0.59,
+        "expect": "escalate"
+      }
+    ]
+  }
+}
